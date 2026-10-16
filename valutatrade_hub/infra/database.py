@@ -63,9 +63,12 @@ class DatabaseManager:
 
     def load_rates(self) -> dict[str, Any]:
         data = self._read("rates.json", {"pairs": {}, "last_refresh": None})
-        if "pairs" not in data:
-            data = {"pairs": {}, "last_refresh": data.get("last_refresh")}
-            for key, value in self._read("rates.json", {}).items():
+        if not isinstance(data, dict):
+            return {"pairs": {}, "last_refresh": None}
+        if "pairs" not in data or not isinstance(data.get("pairs"), dict):
+            legacy_data = data
+            data = {"pairs": {}, "last_refresh": legacy_data.get("last_refresh")}
+            for key, value in legacy_data.items():
                 if isinstance(value, dict) and "rate" in value:
                     data["pairs"][key] = value
         return data

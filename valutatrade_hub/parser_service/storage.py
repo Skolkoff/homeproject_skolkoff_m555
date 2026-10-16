@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from valutatrade_hub.core.currencies import get_supported_currencies
+from valutatrade_hub.core.exceptions import CurrencyNotFoundError
 from valutatrade_hub.core.utils import validate_currency_code
 from valutatrade_hub.infra.database import DatabaseManager
 
@@ -18,26 +19,46 @@ class RatesStorage:
 
     def save_update(self, new_rates: dict[str, dict[str, Any]]) -> int:
         current = self.database.load_rates()
-        pairs = current.setdefault("pairs", {})
+        if not isinstance(current, dict):
+            current = {"pairs": {}, "last_refresh": None}
+        pairs = current.get("pairs")
+        if not isinstance(pairs, dict):
+            pairs = {}
+            current["pairs"] = pairs
         history = self.database.load_history()
-        history_ids = {record.get("id") for record in history}
+        if not isinstance(history, list):
+            history = []
+        history = [record for record in history if isinstance(record, dict)]
+        history_ids = {
+            record["id"] for record in history if isinstance(record.get("id"), str)
+        }
         updated = 0
 
         for pair, data in new_rates.items():
-            from_code, to_code = self._parse_pair(pair)
-            rate = data.get("rate")
-            if isinstance(rate, bool) or not isinstance(rate, (int, float)):
+            try:
+                from_code, to_code = self._parse_pair(pair)
+            except (AttributeError, CurrencyNotFoundError, ValueError):
                 continue
-            if not math.isfinite(float(rate)) or float(rate) <= 0:
+            pair = f"{from_code}_{to_code}"
+            if not isinstance(data, dict):
+                continue
+            rate = data.get("rate")
+            if not self._valid_rate(rate):
                 continue
             timestamp = data.get("updated_at")
             if not isinstance(timestamp, str):
                 continue
-            previous = pairs.get(pair)
-            if previous and self._parse_time(
-                previous["updated_at"]
-            ) >= self._parse_time(timestamp):
+            parsed_timestamp = self._parse_time(timestamp)
+            if parsed_timestamp is None:
                 continue
+            previous = pairs.get(pair)
+            if isinstance(previous, dict):
+                previous_timestamp = self._parse_time(previous.get("updated_at"))
+                if (
+                    previous_timestamp is not None
+                    and previous_timestamp >= parsed_timestamp
+                ):
+                    continue
 
             record = {
                 "rate": float(rate),
@@ -81,13 +102,23 @@ class RatesStorage:
         }
         rows = []
 
-        for pair, data in rates.items():
-            from_code, to_code = self._parse_pair(pair)
+        valid_rates = {
+            pair: data
+            for pair, data in rates.items()
+            if isinstance(pair, str)
+            and isinstance(data, dict)
+            and self._valid_rate(data.get("rate"))
+        }
+        for pair, data in valid_rates.items():
+            try:
+                from_code, to_code = self._parse_pair(pair)
+            except (CurrencyNotFoundError, ValueError):
+                continue
             if normalized_currency and normalized_currency not in (from_code, to_code):
                 continue
             if top is not None and from_code not in crypto_codes:
                 continue
-            converted_rate = self._rate_between(rates, from_code, normalized_base)
+            converted_rate = self._rate_between(valid_rates, from_code, normalized_base)
             if converted_rate is None:
                 if to_code == normalized_base:
                     converted_rate = float(data["rate"])
@@ -118,9 +149,23 @@ class RatesStorage:
         return validate_currency_code(parts[0]), validate_currency_code(parts[1])
 
     @staticmethod
-    def _parse_time(value: str) -> datetime:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    def _parse_time(value: str) -> datetime | None:
+        if not isinstance(value, str):
+            return None
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
         return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed
+
+    @staticmethod
+    def _valid_rate(value: Any) -> bool:
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return False
+        try:
+            return math.isfinite(float(value)) and value > 0
+        except OverflowError:
+            return False
 
     @classmethod
     def _rate_between(

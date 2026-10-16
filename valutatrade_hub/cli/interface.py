@@ -15,11 +15,11 @@ from valutatrade_hub.core.exceptions import (
 from valutatrade_hub.core.models import User
 from valutatrade_hub.core.usecases import (
     buy,
+    get_portfolio_values,
     get_rate,
     login_user,
     register_user,
     sell,
-    show_portfolio,
 )
 from valutatrade_hub.infra.database import DatabaseManager
 from valutatrade_hub.infra.settings import settings
@@ -126,15 +126,15 @@ def _run_command(arguments: argparse.Namespace, user: User | None) -> User | Non
     if command == "show-rates":
         if arguments.top is not None and arguments.top < 1:
             raise ValueError("Параметр --top должен быть больше нуля")
-        get_currency(arguments.base)
+        base = get_currency(arguments.base).code
         if arguments.currency:
-            get_currency(arguments.currency)
+            arguments.currency = get_currency(arguments.currency).code
         database = DatabaseManager()
         storage = RatesStorage(database)
         rows = storage.list_rates(
             currency=arguments.currency,
             top=arguments.top,
-            base=arguments.base,
+            base=base,
         )
         if not rows:
             if database.load_rates().get("pairs"):
@@ -170,18 +170,17 @@ def _run_command(arguments: argparse.Namespace, user: User | None) -> User | Non
         raise NotLoggedInError("Сначала выполните login")
 
     if command == "show-portfolio":
-        portfolio, total = show_portfolio(user, arguments.base)
-        print(f"Портфель пользователя '{user.username}' (база: {arguments.base}):")
+        base = get_currency(arguments.base).code
+        portfolio, values, total = get_portfolio_values(user, base)
+        print(f"Портфель пользователя '{user.username}' (база: {base}):")
         if not portfolio.wallets:
             print("Портфель пока пуст.")
             return user
-        table = PrettyTable(["Валюта", "Баланс", f"Стоимость ({arguments.base})"])
+        table = PrettyTable(["Валюта", "Баланс", f"Стоимость ({base})"])
         for code, wallet in portfolio.wallets.items():
-            rate_info = get_rate(code, arguments.base)
-            value = wallet.balance * rate_info["rate"]
-            table.add_row([code, f"{wallet.balance:.4f}", f"{value:.2f}"])
+            table.add_row([code, f"{wallet.balance:.4f}", f"{values[code]:.2f}"])
         print(table)
-        print(f"ИТОГО: {total:,.2f} {arguments.base}")
+        print(f"ИТОГО: {total:,.2f} {base}")
         return user
 
     if command in ("buy", "sell"):

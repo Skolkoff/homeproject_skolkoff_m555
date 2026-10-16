@@ -97,13 +97,21 @@ def login_user(username: str, password: str) -> User:
 
 def show_portfolio(user: User, base_currency: str = "USD") -> tuple[Portfolio, float]:
     """Return a user's portfolio and total value in the selected base."""
+    portfolio, _, total = get_portfolio_values(user, base_currency)
+    return portfolio, total
+
+
+def get_portfolio_values(
+    user: User, base_currency: str = "USD"
+) -> tuple[Portfolio, dict[str, float], float]:
+    """Return wallet values and their total in the selected base currency."""
     get_currency(base_currency)
     portfolio = _portfolio_for(user)
-    total = sum(
-        wallet.balance * get_rate(code, base_currency)["rate"]
+    values = {
+        code: wallet.balance * get_rate(code, base_currency)["rate"]
         for code, wallet in portfolio.wallets.items()
-    )
-    return portfolio, total
+    }
+    return portfolio, values, sum(values.values())
 
 
 @log_action("BUY", verbose=True)
@@ -201,7 +209,18 @@ def get_rate(from_code: str, to_code: str) -> dict[str, Any]:
 def _get_fresh_cached_rate(
     storage: RatesStorage, from_code: str, to_code: str
 ) -> dict[str, Any] | None:
-    pairs = storage.get_rates().get("pairs", {})
+    cache = storage.get_rates()
+    pairs = cache.get("pairs", {}) if isinstance(cache, dict) else {}
+    if not isinstance(pairs, dict):
+        return None
+    pairs = {
+        pair: record
+        for pair, record in pairs.items()
+        if isinstance(pair, str)
+        and isinstance(record, dict)
+        and RatesStorage._valid_rate(record.get("rate"))
+        and RatesStorage._parse_time(record.get("updated_at")) is not None
+    }
     rate = RatesStorage._rate_between(pairs, from_code, to_code)
     if rate is None:
         return None
@@ -224,7 +243,10 @@ def _get_fresh_cached_rate(
     if direct_record and _is_fresh(direct_record, from_code):
         selected = direct_record
     elif pair_records:
-        selected = min(pair_records, key=lambda item: _timestamp(item["updated_at"]))
+        selected = min(
+            pair_records,
+            key=lambda item: RatesStorage._parse_time(item["updated_at"]),
+        )
     else:
         return None
     return {
@@ -237,13 +259,11 @@ def _get_fresh_cached_rate(
 
 
 def _is_fresh(record: dict[str, Any], code: str) -> bool:
-    age = (datetime.now(UTC) - _timestamp(record["updated_at"])).total_seconds()
+    updated_at = RatesStorage._parse_time(record.get("updated_at"))
+    if updated_at is None:
+        return False
+    age = (datetime.now(UTC) - updated_at).total_seconds()
     is_crypto = get_currency(code).kind == "CRYPTO"
     ttl_key = "rates_ttl_seconds" if is_crypto else "fiat_rates_ttl_seconds"
     default_ttl = 300 if is_crypto else 86400
     return age <= int(settings.get(ttl_key, default_ttl))
-
-
-def _timestamp(value: str) -> datetime:
-    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed

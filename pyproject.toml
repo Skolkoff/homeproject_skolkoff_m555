@@ -27,5 +27,15 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I"]
 
+[tool.valutatrade]
+base_currency = "USD"
+data_dir = "data"
+log_dir = "logs"
+rates_ttl_seconds = 300
+fiat_rates_ttl_seconds = 86400
+starting_balance_usd = 10000.0
+log_max_bytes = 1000000
+log_backup_count = 3
+
 [dependency-groups]
 dev = ["ruff>=0.14.0"]

@@ -26,9 +26,11 @@ class CoinGeckoClient(BaseApiClient):
     source = "CoinGecko"
 
     def __init__(self, config: ParserConfig | None = None) -> None:
+        """Create the client with the supplied or default configuration."""
         self.config = config or ParserConfig()
 
     def fetch_rates(self) -> dict[str, dict[str, Any]]:
+        """Fetch supported cryptocurrency rates from CoinGecko."""
         ids = ",".join(self.config.crypto_id_map.values())
         started = perf_counter()
         try:
@@ -82,9 +84,11 @@ class ExchangeRateApiClient(BaseApiClient):
     source = "ExchangeRate-API"
 
     def __init__(self, config: ParserConfig | None = None) -> None:
+        """Create the client with the supplied or default configuration."""
         self.config = config or ParserConfig()
 
     def fetch_rates(self) -> dict[str, dict[str, Any]]:
+        """Fetch supported fiat rates from ExchangeRate-API."""
         key = self.config.exchange_rate_api_key
         if not key:
             raise ApiRequestError(

@@ -9,10 +9,14 @@ from valutatrade_hub.core.exceptions import (
     UserNotFoundError,
 )
 from valutatrade_hub.core.models import Portfolio, User
-from valutatrade_hub.core.utils import validate_amount
+from valutatrade_hub.core.utils import MIN_PASSWORD_LENGTH, validate_amount
 from valutatrade_hub.decorators import log_action
 from valutatrade_hub.infra.database import DatabaseManager
-from valutatrade_hub.infra.settings import settings
+from valutatrade_hub.infra.settings import (
+    DEFAULT_FIAT_RATES_TTL_SECONDS,
+    DEFAULT_RATES_TTL_SECONDS,
+    settings,
+)
 from valutatrade_hub.parser_service.storage import RatesStorage
 from valutatrade_hub.parser_service.updater import RatesUpdater
 
@@ -53,8 +57,10 @@ def register_user(username: str, password: str) -> User:
     normalized_name = username.strip() if isinstance(username, str) else ""
     if not normalized_name:
         raise ValueError("Имя пользователя не может быть пустым")
-    if not isinstance(password, str) or len(password) < 4:
-        raise InvalidPasswordError("Пароль должен быть не короче 4 символов")
+    if not isinstance(password, str) or len(password) < MIN_PASSWORD_LENGTH:
+        raise InvalidPasswordError(
+            f"Пароль должен быть не короче {MIN_PASSWORD_LENGTH} символов"
+        )
     users = _users()
     if any(user.username.casefold() == normalized_name.casefold() for user in users):
         raise UsernameAlreadyExistsError(
@@ -264,6 +270,9 @@ def _is_fresh(record: dict[str, Any], code: str) -> bool:
         return False
     age = (datetime.now(UTC) - updated_at).total_seconds()
     is_crypto = get_currency(code).kind == "CRYPTO"
-    ttl_key = "rates_ttl_seconds" if is_crypto else "fiat_rates_ttl_seconds"
-    default_ttl = 300 if is_crypto else 86400
-    return age <= int(settings.get(ttl_key, default_ttl))
+    ttl_setting, default_ttl = (
+        ("rates_ttl_seconds", DEFAULT_RATES_TTL_SECONDS)
+        if is_crypto
+        else ("fiat_rates_ttl_seconds", DEFAULT_FIAT_RATES_TTL_SECONDS)
+    )
+    return age <= int(settings.get(ttl_setting, default_ttl))

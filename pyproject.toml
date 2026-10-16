@@ -30,6 +30,10 @@ select = ["E", "F", "I"]
 [tool.valutatrade]
 base_currency = "USD"
 data_dir = "data"
+users_filename = "users.json"
+portfolios_filename = "portfolios.json"
+rates_filename = "rates.json"
+history_filename = "exchange_rates.json"
 log_dir = "logs"
 rates_ttl_seconds = 300
 fiat_rates_ttl_seconds = 86400

@@ -30,6 +30,7 @@ class ApiRequestError(ValutaTradeError):
     """Raised when an exchange-rate API request fails."""
 
     def __init__(self, reason: str) -> None:
+        """Create an API error with a user-readable reason."""
         self.reason = reason
         super().__init__(f"Ошибка при обращении к внешнему API: {reason}")
 

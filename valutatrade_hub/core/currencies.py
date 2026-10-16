@@ -10,6 +10,7 @@ class Currency(ABC):
     kind = "CURRENCY"
 
     def __init__(self, name: str, code: str) -> None:
+        """Create a currency with a validated code and display name."""
         normalized = validate_currency_code(code)
         if not isinstance(name, str) or not name.strip():
             raise ValueError("Название валюты не может быть пустым")
@@ -27,10 +28,12 @@ class FiatCurrency(Currency):
     kind = "FIAT"
 
     def __init__(self, name: str, code: str, issuing_country: str) -> None:
+        """Create a fiat currency with its issuing country."""
         super().__init__(name, code)
         self.issuing_country = issuing_country
 
     def get_display_info(self) -> str:
+        """Return the formatted description of the fiat currency."""
         return f"[FIAT] {self.code} — {self.name} (Issuing: {self.issuing_country})"
 
 
@@ -46,11 +49,13 @@ class CryptoCurrency(Currency):
         algorithm: str,
         market_cap: float = 0.0,
     ) -> None:
+        """Create a cryptocurrency with its algorithm and market cap."""
         super().__init__(name, code)
         self.algorithm = algorithm
         self.market_cap = float(market_cap)
 
     def get_display_info(self) -> str:
+        """Return the formatted description of the cryptocurrency."""
         return (
             f"[CRYPTO] {self.code} — {self.name} "
             f"(Algo: {self.algorithm}, MCAP: {self.market_cap:.2e})"

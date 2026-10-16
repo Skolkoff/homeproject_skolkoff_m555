@@ -21,10 +21,12 @@ class RatesUpdater:
         clients: list[BaseApiClient] | None = None,
         storage: RatesStorage | None = None,
     ) -> None:
+        """Prepare the API clients and rate storage used for updates."""
         self.clients = clients or [CoinGeckoClient(), ExchangeRateApiClient()]
         self.storage = storage or RatesStorage()
 
     def run_update(self, sources: set[str] | None = None) -> dict[str, Any]:
+        """Fetch selected providers and save all returned rates."""
         _LOGGER.info("Starting rates update")
         collected: dict[str, dict[str, Any]] = {}
         errors = []

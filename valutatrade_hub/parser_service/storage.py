@@ -12,12 +12,15 @@ class RatesStorage:
     """Read current rates and persist updates with a rate history."""
 
     def __init__(self, database: DatabaseManager | None = None) -> None:
+        """Create a rate store backed by the shared JSON database."""
         self.database = database or DatabaseManager()
 
     def get_rates(self) -> dict[str, Any]:
+        """Return the latest cached rate records."""
         return self.database.load_rates()
 
     def save_update(self, new_rates: dict[str, dict[str, Any]]) -> int:
+        """Save newer valid rates and append them to the rate history."""
         current = self.database.load_rates()
         if not isinstance(current, dict):
             current = {"pairs": {}, "last_refresh": None}
@@ -92,6 +95,7 @@ class RatesStorage:
         top: int | None = None,
         base: str = "USD",
     ) -> list[dict[str, Any]]:
+        """List cached rates with optional currency, base, and top filters."""
         rates = self.get_rates().get("pairs", {})
         normalized_base = validate_currency_code(base)
         normalized_currency = validate_currency_code(currency) if currency else None

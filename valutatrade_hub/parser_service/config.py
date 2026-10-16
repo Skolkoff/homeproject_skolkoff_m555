@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 
 @dataclass(frozen=True)
 class ParserConfig:
-    """Configuration for supported currency providers."""
+    """Provider URLs, supported currencies, API key, and request timeout."""
 
     exchange_rate_api_key: str | None = field(
         default_factory=lambda: os.getenv("EXCHANGERATE_API_KEY") or None

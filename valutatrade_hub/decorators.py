@@ -13,10 +13,12 @@ def log_action(action: str, verbose: bool = False) -> Callable[[F], F]:
     """Log an operation and re-raise any exception it produces."""
 
     def decorate(function: F) -> F:
+        """Wrap an application action with structured logging."""
         signature = inspect.signature(function)
 
         @wraps(function)
         def wrapped(*args: Any, **kwargs: Any) -> Any:
+            """Log the result of an action and preserve its return value."""
             bound = signature.bind_partial(*args, **kwargs)
             values = bound.arguments
             user = values.get("user")
